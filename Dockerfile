@@ -1,13 +1,14 @@
-FROM alpine:edge as builder
+FROM golang:alpine as builder
 LABEL stage=go-builder
 WORKDIR /app/
-COPY ./ ./
-RUN apk add --no-cache bash curl gcc git go musl-dev; \
-    go build -o /app/bin/alist-proxy -ldflags="-w -s" .
+COPY go.mod go.sum ./
+RUN go mod download
+COPY *.go ./
+RUN go build -v -o /app/bin/openlist-proxy -ldflags="-w -s" .
 
-FROM alpine:edge
-LABEL MAINTAINER="i@nn.ci"
+FROM alpine:3
+LABEL MAINTAINER="OpenList"
 WORKDIR /app/
-COPY --from=builder /app/bin/alist-proxy ./
+COPY --from=builder /app/bin/openlist-proxy ./
 EXPOSE 5243
-CMD [ "./alist-proxy" ]
+CMD [ "./openlist-proxy" ]
