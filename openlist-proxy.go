@@ -6,10 +6,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 
-	"github.com/alist-org/alist/v3/pkg/sign"
+	"github.com/OpenListTeam/OpenList/v4/pkg/sign"
 )
 
 type Link struct {
@@ -27,20 +28,24 @@ var (
 	port              int
 	https             bool
 	help              bool
+	showVersion       bool
 	certFile, keyFile string
 	address, token    string
 	s                 sign.Sign
+	version           string = "dev"
 )
 
 func init() {
 	flag.IntVar(&port, "port", 5243, "the proxy port.")
 	flag.BoolVar(&https, "https", false, "use https protocol.")
 	flag.BoolVar(&help, "help", false, "show help")
+	flag.BoolVar(&showVersion, "version", false, "show version and exit")
 	flag.StringVar(&certFile, "cert", "server.crt", "cert file")
 	flag.StringVar(&keyFile, "key", "server.key", "key file")
-	flag.StringVar(&address, "address", "", "alist address")
-	flag.StringVar(&token, "token", "", "alist token")
+	flag.StringVar(&address, "address", "", "openlist address")
+	flag.StringVar(&token, "token", "", "openlist token")
 	flag.Parse()
+
 	s = sign.NewHMACSign([]byte(token))
 }
 
@@ -107,12 +112,8 @@ func downHandle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req2, _ := http.NewRequest(r.Method, resp.Data.Url, nil)
-	for h, val := range r.Header {
-		req2.Header[h] = val
-	}
-	for h, val := range resp.Data.Header {
-		req2.Header[h] = val
-	}
+	maps.Copy(req2.Header, r.Header)
+	maps.Copy(req2.Header, resp.Data.Header)
 	res2, err := HttpClient.Do(req2)
 	if err != nil {
 		errorResponse(w, 500, err.Error())
@@ -123,9 +124,7 @@ func downHandle(w http.ResponseWriter, r *http.Request) {
 	}()
 	res2.Header.Del("Access-Control-Allow-Origin")
 	res2.Header.Del("set-cookie")
-	for h, v := range res2.Header {
-		w.Header()[h] = v
-	}
+	maps.Copy(w.Header(), res2.Header)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	w.Header().Add("Access-Control-Allow-Headers", "range")
@@ -142,18 +141,27 @@ func main() {
 		flag.Usage()
 		return
 	}
+
+	if showVersion {
+		fmt.Println("Version:", version)
+		return
+	}
+
+	fmt.Printf("OpenList-Proxy - %s\n", version)
 	addr := fmt.Sprintf(":%d", port)
 	fmt.Printf("listen and serve: %s\n", addr)
-	s := http.Server{
+
+	srv := http.Server{
 		Addr:    addr,
 		Handler: http.HandlerFunc(downHandle),
 	}
+
 	if !https {
-		if err := s.ListenAndServe(); err != nil {
+		if err := srv.ListenAndServe(); err != nil {
 			fmt.Printf("failed to start: %s\n", err.Error())
 		}
 	} else {
-		if err := s.ListenAndServeTLS(certFile, keyFile); err != nil {
+		if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
 			fmt.Printf("failed to start: %s\n", err.Error())
 		}
 	}

@@ -1,5 +1,5 @@
-module github.com/Xhofe/alist-proxy
+module github.com/OpenListTeam/OpenList-Proxy
 
-go 1.19
+go 1.24.4
 
-require github.com/alist-org/alist/v3 v3.0.0-beta.0 // indirect
+require github.com/OpenListTeam/OpenList/v4 v4.0.7
