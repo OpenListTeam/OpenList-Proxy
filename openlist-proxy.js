@@ -2,6 +2,9 @@
 const ADDRESS = "YOUR_ADDRESS";
 const TOKEN = "YOUR_TOKEN";
 const WORKER_ADDRESS = "YOUR_WORKER_ADDRESS";
+const ENABLE_NONSIGN = false; 
+// 设置为 true 可开启 nonsign 端点，会造成所有文件可通过路径被访问
+// Setting to true enables the nonsign endpoint, which introduces the risk of all files being accessible through their paths.
 
 // src/verify.js
 /**
@@ -72,24 +75,75 @@ async function handleDownload(request) {
   const path = decodeURIComponent(url.pathname);
   const sign = url.searchParams.get("sign") ?? "";
   
-  // Skip signature verification for paths starting with /nonsign/
-  const shouldSkipVerification = path.startsWith("/nonsign/");
-  const verifyResult = shouldSkipVerification ? "" : await verify(path, sign);
-  if (verifyResult !== "") {
-    const resp2 = new Response(
+  let actualPath;
+  let needVerifySign = false;
+  
+  // 检查端点类型
+  if (path.startsWith("/sign/")) {
+    // /sign 端点：需要签名验证
+    actualPath = path.substring(5); // 移除 "/sign"
+    needVerifySign = true;
+  } else if (path.startsWith("/nonsign/")) {
+    // 检查是否启用 nonsign 端点
+    if (!ENABLE_NONSIGN) {
+      return new Response(
+        JSON.stringify({
+          code: 404,
+          message: "Not found",
+        }),
+        {
+          headers: {
+            "content-type": "application/json;charset=UTF-8",
+            "Access-Control-Allow-Origin": origin,
+          },
+        }
+      );
+    }
+    // /nonsign 端点：不需要签名验证
+    actualPath = path.substring(9); // 移除 "/nonsign"
+    needVerifySign = false;
+  } else {
+    // 其他路径：返回 404
+    return new Response(
       JSON.stringify({
-        code: 401,
-        message: verifyResult,
+        code: 404,
+        message: "Not found",
       }),
       {
         headers: {
           "content-type": "application/json;charset=UTF-8",
+          "Access-Control-Allow-Origin": origin,
         },
       }
     );
-    resp2.headers.set("Access-Control-Allow-Origin", origin);
-    return resp2;
   }
+  
+  // 如果需要签名验证，进行验证
+  if (needVerifySign) {
+    // 尝试两种签名验证方式：先验证不包含 /sign 的路径，如果失败再验证包含 /sign 的路径
+    let verifyResult = await verify(actualPath, sign);
+    if (verifyResult !== "") {
+      // 如果使用实际路径验证失败，尝试使用完整路径（包含 /sign）
+      verifyResult = await verify(path, sign);
+      if (verifyResult !== "") {
+        const resp2 = new Response(
+          JSON.stringify({
+            code: 401,
+            message: verifyResult,
+          }),
+          {
+            headers: {
+              "content-type": "application/json;charset=UTF-8",
+            },
+          }
+        );
+        resp2.headers.set("Access-Control-Allow-Origin", origin);
+        return resp2;
+      }
+    }
+  }
+  
+  // 使用实际路径进行文件获取
   let resp = await fetch(`${ADDRESS}/api/fs/link`, {
     method: "POST",
     headers: {
@@ -97,7 +151,7 @@ async function handleDownload(request) {
       Authorization: TOKEN,
     },
     body: JSON.stringify({
-      path,
+      path: actualPath,
     }),
   });
   let res = await resp.json();
