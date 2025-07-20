@@ -29,6 +29,7 @@ var (
 	https             bool
 	help              bool
 	showVersion       bool
+	disableSign       bool
 	certFile, keyFile string
 	address, token    string
 	s                 sign.Sign
@@ -40,6 +41,7 @@ func init() {
 	flag.BoolVar(&https, "https", false, "use https protocol.")
 	flag.BoolVar(&help, "help", false, "show help")
 	flag.BoolVar(&showVersion, "version", false, "show version and exit")
+	flag.BoolVar(&disableSign, "disable-sign", false, "disable signature verification")
 	flag.StringVar(&certFile, "cert", "server.crt", "cert file")
 	flag.StringVar(&keyFile, "key", "server.key", "key file")
 	flag.StringVar(&address, "address", "", "openlist address")
@@ -66,13 +68,18 @@ func errorResponse(w http.ResponseWriter, code int, msg string) {
 }
 
 func downHandle(w http.ResponseWriter, r *http.Request) {
-	sign := r.URL.Query().Get("sign")
 	filePath := r.URL.Path
-	err := s.Verify(filePath, sign)
-	if err != nil {
-		errorResponse(w, 401, err.Error())
-		return
+
+	// If signature verification is not disabled, perform signature verification
+	if !disableSign {
+		sign := r.URL.Query().Get("sign")
+		err := s.Verify(filePath, sign)
+		if err != nil {
+			errorResponse(w, 401, err.Error())
+			return
+		}
 	}
+
 	data := Json{
 		"path": filePath,
 	}
