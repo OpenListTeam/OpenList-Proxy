@@ -111,10 +111,10 @@ async function handleDownload(request) {
         {
           headers: {
             "content-type": "application/json;charset=UTF-8",
+            "Access-Control-Allow-Origin": origin,
           },
         }
       );
-      resp2.headers.set("Access-Control-Allow-Origin", origin);
       return resp2;
     }
   }
@@ -172,7 +172,7 @@ async function handleDownload(request) {
 function handleOptions(request) {
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
+    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
     "Access-Control-Max-Age": "86400",
   };
   let headers = request.headers;
@@ -191,7 +191,7 @@ function handleOptions(request) {
   } else {
     return new Response(null, {
       headers: {
-        Allow: "GET, HEAD, POST, OPTIONS",
+        Allow: "GET, HEAD, OPTIONS",
       },
     });
   }
