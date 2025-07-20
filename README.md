@@ -13,6 +13,8 @@ Usage of OpenList-Proxy:
         openlist address
   -cert string
         cert file (default "server.crt")
+  -disable-sign
+        disable signature verification
   -help
         show help
   -https
