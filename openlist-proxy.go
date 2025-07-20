@@ -31,6 +31,7 @@ var (
 	showVersion       bool
 	certFile, keyFile string
 	address, token    string
+	enableNonsign     bool
 	s                 sign.Sign
 	version           string = "dev"
 )
@@ -44,6 +45,7 @@ func init() {
 	flag.StringVar(&keyFile, "key", "server.key", "key file")
 	flag.StringVar(&address, "address", "", "openlist address")
 	flag.StringVar(&token, "token", "", "openlist token")
+	flag.BoolVar(&enableNonsign, "enable-nonsign", false, "enable nonsign endpoint (security risk)")
 	flag.Parse()
 
 	s = sign.NewHMACSign([]byte(token))
@@ -66,15 +68,62 @@ func errorResponse(w http.ResponseWriter, code int, msg string) {
 }
 
 func downHandle(w http.ResponseWriter, r *http.Request) {
-	sign := r.URL.Query().Get("sign")
-	filePath := r.URL.Path
-	err := s.Verify(filePath, sign)
-	if err != nil {
-		errorResponse(w, 401, err.Error())
+	// 设置 CORS 头
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		origin = "*"
+	}
+	w.Header().Set("Access-Control-Allow-Origin", origin)
+	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS")
+	w.Header().Add("Access-Control-Allow-Headers", "range")
+	w.Header().Add("Vary", "Origin")
+
+	// 处理 OPTIONS 请求
+	if r.Method == "OPTIONS" {
+		w.Header().Set("Access-Control-Max-Age", "86400")
+		if r.Header.Get("Access-Control-Request-Headers") != "" {
+			w.Header().Set("Access-Control-Allow-Headers", r.Header.Get("Access-Control-Request-Headers"))
+		}
+		w.WriteHeader(200)
 		return
 	}
+
+	path := r.URL.Path
+	var actualPath string
+	var needVerifySign bool
+
+	// 检查端点类型
+	if strings.HasPrefix(path, "/sign/") {
+		// /sign 端点：需要签名验证
+		actualPath = path[5:] // 移除 "/sign"
+		needVerifySign = true
+	} else if strings.HasPrefix(path, "/nonsign/") {
+		// 检查是否启用 nonsign 端点
+		if !enableNonsign {
+			errorResponse(w, 404, "Not found")
+			return
+		}
+		// /nonsign 端点：不需要签名验证
+		actualPath = path[9:] // 移除 "/nonsign"
+		needVerifySign = false
+	} else {
+		// 其他路径：返回 404
+		errorResponse(w, 404, "Not found")
+		return
+	}
+
+	// 如果需要签名验证，进行验证
+	if needVerifySign {
+		sign := r.URL.Query().Get("sign")
+		err := s.Verify(actualPath, sign)
+		if err != nil {
+			errorResponse(w, 401, err.Error())
+			return
+		}
+	}
+
 	data := Json{
-		"path": filePath,
+		"path": actualPath,
 	}
 	dataByte, _ := json.Marshal(data)
 	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/api/fs/link", address), bytes.NewBuffer(dataByte))
@@ -125,9 +174,10 @@ func downHandle(w http.ResponseWriter, r *http.Request) {
 	res2.Header.Del("Access-Control-Allow-Origin")
 	res2.Header.Del("set-cookie")
 	maps.Copy(w.Header(), res2.Header)
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Origin", origin)
+	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS")
 	w.Header().Add("Access-Control-Allow-Headers", "range")
+	w.Header().Add("Vary", "Origin")
 	w.WriteHeader(res2.StatusCode)
 	_, err = io.Copy(w, res2.Body)
 	if err != nil {

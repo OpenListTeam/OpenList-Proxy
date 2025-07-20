@@ -120,26 +120,21 @@ async function handleDownload(request) {
   
   // 如果需要签名验证，进行验证
   if (needVerifySign) {
-    // 尝试两种签名验证方式：先验证不包含 /sign 的路径，如果失败再验证包含 /sign 的路径
-    let verifyResult = await verify(actualPath, sign);
+    const verifyResult = await verify(actualPath, sign);
     if (verifyResult !== "") {
-      // 如果使用实际路径验证失败，尝试使用完整路径（包含 /sign）
-      verifyResult = await verify(path, sign);
-      if (verifyResult !== "") {
-        const resp2 = new Response(
-          JSON.stringify({
-            code: 401,
-            message: verifyResult,
-          }),
-          {
-            headers: {
-              "content-type": "application/json;charset=UTF-8",
-            },
-          }
-        );
-        resp2.headers.set("Access-Control-Allow-Origin", origin);
-        return resp2;
-      }
+      const resp2 = new Response(
+        JSON.stringify({
+          code: 401,
+          message: verifyResult,
+        }),
+        {
+          headers: {
+            "content-type": "application/json;charset=UTF-8",
+          },
+        }
+      );
+      resp2.headers.set("Access-Control-Allow-Origin", origin);
+      return resp2;
     }
   }
   
