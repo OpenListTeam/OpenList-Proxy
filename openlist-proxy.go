@@ -69,7 +69,7 @@ func errorResponse(w http.ResponseWriter, code int, msg string) {
 
 func downHandle(w http.ResponseWriter, r *http.Request) {
 	filePath := r.URL.Path
-	
+
 	// If signature verification is not disabled, perform signature verification
 	if !disableSign {
 		sign := r.URL.Query().Get("sign")
@@ -79,7 +79,7 @@ func downHandle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	
+
 	data := Json{
 		"path": filePath,
 	}
