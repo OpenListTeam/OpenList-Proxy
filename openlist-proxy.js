@@ -2,6 +2,9 @@
 const ADDRESS = "YOUR_ADDRESS";
 const TOKEN = "YOUR_TOKEN";
 const WORKER_ADDRESS = "YOUR_WORKER_ADDRESS";
+const DISABLE_SIGN = false; // Disable signature verification, default is off
+// Privacy Warning: Disabling signature allows files to be accessed by anyone who knows the path.
+// 隐私警告：关闭签名会造成文件可被任何知晓路径的人获取
 
 // src/verify.js
 /**
@@ -11,6 +14,11 @@ const WORKER_ADDRESS = "YOUR_WORKER_ADDRESS";
  * @returns {Promise<string>} Error message if invalid, empty string if valid.
  */
 var verify = async (data, _sign) => {
+  // If signature verification is disabled, return pass directly
+  if (DISABLE_SIGN) {
+    return "";
+  }
+  
   const signSlice = _sign.split(":");
   if (!signSlice[signSlice.length - 1]) {
     return "expire missing";
@@ -70,23 +78,28 @@ async function handleDownload(request) {
   const origin = request.headers.get("origin") ?? "*";
   const url = new URL(request.url);
   const path = decodeURIComponent(url.pathname);
-  const sign = url.searchParams.get("sign") ?? "";
-  const verifyResult = await verify(path, sign);
-  if (verifyResult !== "") {
-    const resp2 = new Response(
-      JSON.stringify({
-        code: 401,
-        message: verifyResult,
-      }),
-      {
-        headers: {
-          "content-type": "application/json;charset=UTF-8",
-        },
-      }
-    );
-    resp2.headers.set("Access-Control-Allow-Origin", origin);
-    return resp2;
+  
+  // If signature verification is not disabled, perform signature verification
+  if (!DISABLE_SIGN) {
+    const sign = url.searchParams.get("sign") ?? "";
+    const verifyResult = await verify(path, sign);
+    if (verifyResult !== "") {
+      const resp2 = new Response(
+        JSON.stringify({
+          code: 401,
+          message: verifyResult,
+        }),
+        {
+          headers: {
+            "content-type": "application/json;charset=UTF-8",
+          },
+        }
+      );
+      resp2.headers.set("Access-Control-Allow-Origin", origin);
+      return resp2;
+    }
   }
+  
   let resp = await fetch(`${ADDRESS}/api/fs/link`, {
     method: "POST",
     headers: {
