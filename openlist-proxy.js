@@ -1,8 +1,16 @@
 // src/const.js
-const ADDRESS = "YOUR_ADDRESS";
-const TOKEN = "YOUR_TOKEN";
-const WORKER_ADDRESS = "YOUR_WORKER_ADDRESS";
-const DISABLE_SIGN = false; // Disable signature verification, default is off
+// Environment variables will be injected by Cloudflare Worker runtime
+// These will be set during the fetch function execution
+let ADDRESS, TOKEN, WORKER_ADDRESS, DISABLE_SIGN;
+
+// Function to initialize constants from environment variables
+function initConstants(env) {
+  ADDRESS = env.ADDRESS || "YOUR_ADDRESS";
+  TOKEN = env.TOKEN || "YOUR_TOKEN";
+  WORKER_ADDRESS = env.WORKER_ADDRESS || "YOUR_WORKER_ADDRESS";
+  DISABLE_SIGN = env.DISABLE_SIGN === 'true' || env.DISABLE_SIGN === true || false;
+}
+
 // Privacy Warning: Disabling signature allows files to be accessed by anyone who knows the path.
 // 隐私警告：关闭签名会造成文件可被任何知晓路径的人获取
 
@@ -201,6 +209,8 @@ async function handleRequest(request) {
  */
 var src_default = {
   async fetch(request, env, ctx) {
+    // Initialize constants from environment variables
+    initConstants(env);
     return await handleRequest(request);
   },
 };
