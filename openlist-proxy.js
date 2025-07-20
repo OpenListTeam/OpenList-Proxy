@@ -165,9 +165,35 @@ function handleOptions(request) {
   }
 }
 
+// src/handleSignToggle.js
+/**
+ * Handles sign toggle requests to enable/disable signature verification.
+ * @param {Request} request - The incoming HTTP request.
+ * @param {boolean} enableSign - Whether to enable signature verification.
+ * @returns {Promise<Response>} Response indicating toggle status.
+ */
+async function handleSignToggle(request, enableSign) {
+  const origin = request.headers.get("origin") ?? "*";
+  const response = new Response(
+    JSON.stringify({
+      code: 200,
+      message: `Signature verification ${enableSign ? 'enabled' : 'disabled'}`,
+      sign_enabled: enableSign
+    }),
+    {
+      headers: {
+        "content-type": "application/json;charset=UTF-8",
+        "Access-Control-Allow-Origin": origin
+      }
+    }
+  );
+  response.headers.append("Vary", "Origin");
+  return response;
+}
+
 // src/handleRequest.js
 /**
- * Main request handler that routes based on HTTP method.
+ * Main request handler that routes based on path.
  * @param {Request} request - The incoming HTTP request.
  * @returns {Promise<Response>} A valid response.
  */
@@ -175,7 +201,27 @@ async function handleRequest(request) {
   if (request.method === "OPTIONS") {
     return handleOptions(request);
   }
-  return await handleDownload(request);
+  
+  const url = new URL(request.url);
+  const pathname = url.pathname;
+  
+  // Only allow /sign and /nonsign endpoints
+  if (pathname === "/sign") {
+    return await handleSignToggle(request, true);
+  } else if (pathname === "/nonsign") {
+    return await handleSignToggle(request, false);
+  } else {
+    // All other paths return 403 Forbidden
+    const origin = request.headers.get("origin") ?? "*";
+    const response = new Response("Forbidden", {
+      status: 403,
+      headers: {
+        "Access-Control-Allow-Origin": origin
+      }
+    });
+    response.headers.append("Vary", "Origin");
+    return response;
+  }
 }
 
 // src/index.js
