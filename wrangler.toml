@@ -1,0 +1,3 @@
+name = "openlist-proxy"
+main = "openlist-proxy.js"
+compatibility_date = "2025-07-25" 
