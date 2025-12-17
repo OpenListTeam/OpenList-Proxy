@@ -1,5 +1,5 @@
 // src/const.js
-// Environment variables will be injected by Cloudflare Worker runtime
+// Environment variables will be injected by runtime
 // These will be set during the fetch function execution
 let ADDRESS, TOKEN, WORKER_ADDRESS, DISABLE_SIGN;
 
@@ -11,8 +11,8 @@ function initConstants(env) {
   // OpenList 服务器的 API 访问令牌 (密钥)
   // API access token (secret key) for OpenList server
   TOKEN = env.TOKEN || "YOUR_TOKEN";
-  // Cloudflare Worker 的完整地址
-  // Full address of your Cloudflare Worker
+  // Cloudflare Worker 的完整地址 (以 'http://' 或 'https://' 开头)
+  // Full address of your Cloudflare Worker (starts with 'http://' or 'https://')
   WORKER_ADDRESS = env.WORKER_ADDRESS || "YOUR_WORKER_ADDRESS";
   // 是否禁用签名验证 (推荐设置为 false)
   // Whether to disable signature verification (recommended to set as false)
@@ -212,18 +212,28 @@ async function handleRequest(request) {
 }
 
 // src/index.js
-/**
- * Cloudflare Worker entry point.
- * @param {Request} request - The incoming request.
- * @param {any} env - Environment bindings.
- * @param {ExecutionContext} ctx - Execution context.
- * @returns {Promise<Response>} Response from the handler.
- */
-var src_default = {
+export default {
+  /**
+   * Cloudflare Workers entry point.
+   * @param {Request} request - The incoming request.
+   * @param {any} env - Environment bindings.
+   * @param {ExecutionContext} ctx - Execution context.
+   * @returns {Promise<Response>} Response from the handler.
+   */
   async fetch(request, env, ctx) {
     // Initialize constants from environment variables
     initConstants(env);
     return await handleRequest(request);
   },
 };
-export { src_default as default };
+
+/**
+ * Cloudflare / EdgeOne Pages entry point.
+ * @param {{ request: Request; env: any; }} context - The incoming request context.
+ * @returns {Promise<Response>} Response from the handler.
+ */
+export async function onRequest(context) {
+  const { request, env } = context;
+  initConstants(env);
+  return await handleRequest(request);
+}
