@@ -1,7 +1,7 @@
 // src/const.js
-// Environment variables will be injected by Cloudflare Worker runtime
+// Environment variables will be injected by runtime
 // These will be set during the fetch function execution
-let ADDRESS, TOKEN, WORKER_ADDRESS, DISABLE_SIGN;
+let ADDRESS, TOKEN, DISABLE_SIGN;
 
 // Function to initialize constants from environment variables
 function initConstants(env) {
@@ -11,9 +11,6 @@ function initConstants(env) {
   // OpenList 服务器的 API 访问令牌 (密钥)
   // API access token (secret key) for OpenList server
   TOKEN = env.TOKEN || "YOUR_TOKEN";
-  // Cloudflare Worker 的完整地址
-  // Full address of your Cloudflare Worker
-  WORKER_ADDRESS = env.WORKER_ADDRESS || "YOUR_WORKER_ADDRESS";
   // 是否禁用签名验证 (推荐设置为 false)
   // Whether to disable signature verification (recommended to set as false)
   // 隐私警告：关闭签名会造成文件可被任何知晓路径的人获取
@@ -133,29 +130,20 @@ async function handleDownload(request) {
   if (res.code !== 200) {
     return new Response(JSON.stringify(res));
   }
-  request = new Request(res.data.url, request);
+  let header = new Headers(request.headers);
   if (res.data.header) {
     for (const k in res.data.header) {
       for (const v of res.data.header[k]) {
-        request.headers.set(k, v);
+        header.set(k, v);
       }
     }
   }
+  request = new Request(res.data.url, {
+    method: "GET",
+    headers: header,
+    redirect: "follow",
+  });
   let response = await fetch(request);
-  while (response.status >= 300 && response.status < 400) {
-    const location = response.headers.get("Location");
-    if (location) {
-      if (location.startsWith(`${WORKER_ADDRESS}/`)) {
-        request = new Request(location, request);
-        return await handleRequest(request);
-      } else {
-        request = new Request(location, request);
-        response = await fetch(request);
-      }
-    } else {
-      break;
-    }
-  }
   response = new Response(response.body, response);
   response.headers.delete("set-cookie");
   response.headers.delete("Alt-Svc");
@@ -212,18 +200,28 @@ async function handleRequest(request) {
 }
 
 // src/index.js
-/**
- * Cloudflare Worker entry point.
- * @param {Request} request - The incoming request.
- * @param {any} env - Environment bindings.
- * @param {ExecutionContext} ctx - Execution context.
- * @returns {Promise<Response>} Response from the handler.
- */
-var src_default = {
+export default {
+  /**
+   * Cloudflare Workers entry point.
+   * @param {Request} request - The incoming request.
+   * @param {any} env - Environment bindings.
+   * @param {ExecutionContext} ctx - Execution context.
+   * @returns {Promise<Response>} Response from the handler.
+   */
   async fetch(request, env, ctx) {
     // Initialize constants from environment variables
     initConstants(env);
     return await handleRequest(request);
   },
 };
-export { src_default as default };
+
+/**
+ * Cloudflare / EdgeOne Pages entry point.
+ * @param {{ request: Request; env: any; }} context - The incoming request context.
+ * @returns {Promise<Response>} Response from the handler.
+ */
+export async function onRequest(context) {
+  const { request, env } = context;
+  initConstants(env);
+  return await handleRequest(request);
+}
